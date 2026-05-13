@@ -15,7 +15,7 @@ class EventHandler:
         
     def handle_event(self, event: pygame.event.Event):
         if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION):
-            if event.pos[0] < UI_PANEL_WIDTH:
+            if event.pos[0] < UI_PANEL_WIDTH or event.pos[1] < TOP_BAR_HEIGHT:
                 return
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -30,6 +30,7 @@ class EventHandler:
     def _on_mouse_down(self, pos: tuple):
         x, y = pos
         x -= UI_PANEL_WIDTH
+        y -= TOP_BAR_HEIGHT
         
         if self.app.active_tool == TOOL_POLYGON:
             self.points.append((x, y))
@@ -59,6 +60,7 @@ class EventHandler:
         if self.is_drawing and len(self.points) >= 2:
             x, y = pos
             x -= UI_PANEL_WIDTH
+            y -= TOP_BAR_HEIGHT
             self.points[-1] = (x, y)
             self.app.draw_preview()
 
@@ -67,6 +69,7 @@ class EventHandler:
             self.is_drawing = False
             x, y = pos
             x -= UI_PANEL_WIDTH
+            y -= TOP_BAR_HEIGHT
             self.points[-1] = (x, y)
             self.app.commit_shape(self.points)
             self.points = []

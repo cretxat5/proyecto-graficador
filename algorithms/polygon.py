@@ -65,3 +65,27 @@ def draw_triangle(surface, x0: int, y0: int, x1: int, y1: int, x2: int, y2: int,
         (x2, y2)
     ]
     draw_polygon(surface, points, color)
+
+def draw_hexagon(surface, cx: int, cy: int, r: int, color: tuple):
+    """
+    Dibuja un hexágono regular centrado en (cx, cy) con radio r.
+
+    Args:
+        surface: Superficie.
+        cx, cy: Centro.
+        r: Radio (distancia al vértice).
+        color: Color.
+
+    Returns:
+        None
+    """
+    import math
+    points = []
+    for i in range(6):
+        angle_deg = 60 * i - 30
+        angle_rad = math.radians(angle_deg)
+        px = int(cx + r * math.cos(angle_rad))
+        py = int(cy + r * math.sin(angle_rad))
+        points.append((px, py))
+    
+    draw_polygon(surface, points, color)

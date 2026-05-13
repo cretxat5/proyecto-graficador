@@ -10,11 +10,13 @@ class Interface:
     """
     Clase encargada de dibujar la interfaz, panel de herramientas y gestionar su estado.
     """
-    def __init__(self, set_tool_callback, clear_canvas_callback, set_color_callback):
+    def __init__(self, set_tool_callback, clear_canvas_callback, set_color_callback, 
+                 undo_callback, open_callback, save_callback, manual_callback):
         self.font = pygame.font.SysFont("Arial", 16)
         self.title_font = pygame.font.SysFont("Arial", 20, bold=True)
         
-        self.panel_rect = pygame.Rect(0, 0, UI_PANEL_WIDTH, WINDOW_HEIGHT)
+        self.panel_rect = pygame.Rect(0, TOP_BAR_HEIGHT, UI_PANEL_WIDTH, WINDOW_HEIGHT - TOP_BAR_HEIGHT)
+        self.top_bar_rect = pygame.Rect(0, 0, WINDOW_WIDTH, TOP_BAR_HEIGHT)
         
         self.active_tool = TOOLS[0]
         self.active_color = BLACK
@@ -22,12 +24,17 @@ class Interface:
         self.set_tool_callback = set_tool_callback
         self.clear_canvas_callback = clear_canvas_callback
         self.set_color_callback = set_color_callback
+        self.undo_callback = undo_callback
+        self.open_callback = open_callback
+        self.save_callback = save_callback
+        self.manual_callback = manual_callback
         
         self.buttons = []
+        self.top_buttons = []
         self._setup_ui()
         
     def _setup_ui(self):
-        y_offset = 50
+        y_offset = TOP_BAR_HEIGHT + 50
         
         for tool in TOOLS:
             btn = Button(
@@ -64,6 +71,34 @@ class Interface:
         )
         self.buttons.append(btn_clear)
         
+        # Botones de la barra superior
+        top_btn_width = 120
+        top_btn_height = 30
+        x_offset = 10
+        
+        actions = [
+            ("Deshacer", self.undo_callback),
+            ("Limpiar", self.clear_canvas_callback),
+            ("Abrir PNG", self.open_callback),
+            ("Guardar PNG", self.save_callback),
+            ("Manual", self.manual_callback)
+        ]
+        
+        for text, action in actions:
+            btn = Button(
+                x=x_offset,
+                y=(TOP_BAR_HEIGHT - top_btn_height) // 2,
+                width=top_btn_width,
+                height=top_btn_height,
+                text=text,
+                font=self.font,
+                color=LIGHT_GRAY,
+                hover_color=GRAY,
+                action=action
+            )
+            self.top_buttons.append(btn)
+            x_offset += top_btn_width + 10
+        
     def _change_tool(self, tool_name: str):
         self.active_tool = tool_name
         self.set_tool_callback(tool_name)
@@ -73,11 +108,16 @@ class Interface:
         self.set_color_callback(color)
         
     def draw(self, surface: pygame.Surface):
+        # Dibujar Panel Lateral
         surface.fill((230, 230, 230), self.panel_rect)
-        surface.fill(BLACK, (UI_PANEL_WIDTH - 2, 0, 2, WINDOW_HEIGHT))
+        surface.fill(BLACK, (UI_PANEL_WIDTH - 2, TOP_BAR_HEIGHT, 2, WINDOW_HEIGHT - TOP_BAR_HEIGHT))
+        
+        # Dibujar Barra Superior
+        surface.fill((210, 210, 210), self.top_bar_rect)
+        surface.fill(BLACK, (0, TOP_BAR_HEIGHT - 2, WINDOW_WIDTH, 2))
         
         title = self.title_font.render("Herramientas", True, BLACK)
-        surface.blit(title, (20, 15))
+        surface.blit(title, (20, TOP_BAR_HEIGHT + 15))
         
         for btn in self.buttons:
             if btn.text == self.active_tool:
@@ -87,6 +127,9 @@ class Interface:
                 
             btn.draw(surface)
             
+        for btn in self.top_buttons:
+            btn.draw(surface)
+                
         color_title = self.font.render("Colores:", True, BLACK)
         surface.blit(color_title, (20, self.palette.y - 25))
         self.palette.draw(surface, self.active_color)
@@ -98,10 +141,10 @@ class Interface:
 
     def handle_event(self, event: pygame.event.Event):
         if event.type == pygame.MOUSEMOTION:
-            for btn in self.buttons:
+            for btn in self.buttons + self.top_buttons:
                 btn.check_hover(event.pos)
                 
-        for btn in self.buttons:
+        for btn in self.buttons + self.top_buttons:
             btn.handle_event(event)
             
         self.palette.handle_event(event)

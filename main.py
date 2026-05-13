@@ -8,6 +8,8 @@ geométricas usando diversos algoritmos de rasterización.
 import pygame
 import sys
 import math
+import tkinter as tk
+from tkinter import filedialog
 
 from utils.constants import *
 from utils.colors import *
@@ -18,7 +20,7 @@ from algorithms.dda import draw_dda
 from algorithms.bresenham import draw_bresenham_line
 from algorithms.circle import draw_bresenham_circle
 from algorithms.ellipse import draw_ellipse
-from algorithms.polygon import draw_polygon, draw_rectangle, draw_triangle
+from algorithms.polygon import draw_polygon, draw_rectangle, draw_triangle, draw_hexagon
 from algorithms.bezier import draw_bezier_cubic
 
 
@@ -55,13 +57,20 @@ class Application:
         self.preview_surface = pygame.Surface((CANVAS_WIDTH, CANVAS_HEIGHT))
         self.preview_surface.set_colorkey((0, 255, 0))  # Transparente
         
+        # Historial para deshacer (pila de estados)
+        self.history_stack = []
+        
         self.active_tool = TOOL_DDA
         self.active_color = BLACK
         
         self.ui = Interface(
             set_tool_callback=self.set_tool,
             clear_canvas_callback=self.clear_canvas,
-            set_color_callback=self.set_color
+            set_color_callback=self.set_color,
+            undo_callback=self.undo_action,
+            open_callback=self.open_image,
+            save_callback=self.save_image,
+            manual_callback=self.open_manual
         )
         
         self.event_handler = EventHandler(self)
@@ -107,6 +116,7 @@ class Application:
         Retorna:
             No retorna valor.
         """
+        self.save_history()
         self.canvas_surface.fill(WHITE)
         self.draw_preview()
 
@@ -123,6 +133,7 @@ class Application:
         Retorna:
             No retorna valor.
         """
+        self.save_history()
         self._render_shape(self.canvas_surface, self.active_tool, points, self.active_color)
         self.preview_surface.fill((0, 255, 0))
 
@@ -224,6 +235,103 @@ class Application:
             if len(points) == 4:
                 draw_bezier_cubic(surface, points[0], points[1], points[2], 
                                  points[3], color)
+                
+        elif tool == TOOL_HEXAGON:
+            dx = points[-1][0] - points[0][0]
+            dy = points[-1][1] - points[0][1]
+            r = int(math.sqrt(dx*dx + dy*dy))
+            if r > 0:
+                draw_hexagon(surface, points[0][0], points[0][1], r, color)
+
+    def save_history(self):
+        """Guarda una copia del estado actual del lienzo para permitir deshacer."""
+        self.history_stack.append(self.canvas_surface.copy())
+        # Limitar el historial a 20 estados para no consumir demasiada memoria
+        if len(self.history_stack) > 20:
+            self.history_stack.pop(0)
+
+    def undo_action(self):
+        """Restaura el lienzo al estado previo a la última acción."""
+        if self.history_stack:
+            last_state = self.history_stack.pop()
+            self.canvas_surface.blit(last_state, (0, 0))
+            self.draw_preview()
+
+    def open_manual(self):
+        """Abre el archivo manual_usuario.md en una ventana independiente sin bloquear."""
+        import threading
+        import os
+        
+        def show_window():
+            from tkinter import scrolledtext, WORD, BOTH, INSERT, messagebox
+            
+            path = os.path.join("docs", "manual_usuario.md")
+            if not os.path.exists(path):
+                # Necesitamos un root temporal para el messagebox
+                temp_root = tk.Tk()
+                temp_root.withdraw()
+                messagebox.showerror("Error", f"No se encontró el archivo: {path}")
+                temp_root.destroy()
+                return
+
+            manual_win = tk.Tk()
+            manual_win.title("Manual de Usuario")
+            manual_win.geometry("600x500")
+            
+            text_area = scrolledtext.ScrolledText(manual_win, wrap=WORD, width=80, height=30)
+            text_area.pack(padx=10, pady=10, fill=BOTH, expand=True)
+            
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                text_area.insert(INSERT, content)
+                text_area.configure(state='disabled')
+            except Exception as e:
+                text_area.insert(INSERT, f"Error al leer el archivo: {e}")
+            
+            manual_win.mainloop()
+
+        # Ejecutar en un hilo separado para no bloquear pygame
+        thread = threading.Thread(target=show_window, daemon=True)
+        thread.start()
+
+    def open_image(self):
+        """Abre un cuadro de diálogo para cargar una imagen PNG como fondo del lienzo."""
+        root = tk.Tk()
+        root.withdraw()
+        file_path = filedialog.askopenfilename(
+            title="Seleccionar imagen PNG",
+            filetypes=[("Archivos PNG", "*.png")]
+        )
+        root.destroy()
+        
+        if file_path:
+            try:
+                self.save_history()
+                img = pygame.image.load(file_path).convert()
+                # Ajustar imagen al tamaño del lienzo manteniendo la relación de aspecto si es necesario
+                # Por simplicidad y según requerimientos, se blitea directamente
+                self.canvas_surface.blit(img, (0, 0))
+                self.draw_preview()
+            except pygame.error as e:
+                print(f"Error al cargar la imagen: {e}")
+
+    def save_image(self):
+        """Guarda el contenido actual del lienzo en un archivo PNG."""
+        root = tk.Tk()
+        root.withdraw()
+        file_path = filedialog.asksaveasfilename(
+            title="Guardar lienzo como PNG",
+            defaultextension=".png",
+            filetypes=[("Archivos PNG", "*.png")]
+        )
+        root.destroy()
+        
+        if file_path:
+            try:
+                pygame.image.save(self.canvas_surface, file_path)
+            except pygame.error as e:
+                print(f"Error al guardar la imagen: {e}")
 
     def run(self):
         """
@@ -254,8 +362,8 @@ class Application:
 
             self.screen.fill((200, 200, 200))
             self.ui.draw(self.screen)
-            self.screen.blit(self.canvas_surface, (UI_PANEL_WIDTH, 0))
-            self.screen.blit(self.preview_surface, (UI_PANEL_WIDTH, 0))
+            self.screen.blit(self.canvas_surface, (UI_PANEL_WIDTH, TOP_BAR_HEIGHT))
+            self.screen.blit(self.preview_surface, (UI_PANEL_WIDTH, TOP_BAR_HEIGHT))
             
             pygame.display.flip()
             self.clock.tick(FPS)
